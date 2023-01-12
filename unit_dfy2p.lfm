@@ -1,11 +1,11 @@
 object Form1: TForm1
-  Left = 903
-  Height = 472
-  Top = 132
+  Left = 1326
+  Height = 507
+  Top = 263
   Width = 392
   BorderStyle = bsSingle
   Caption = 'Сборщик ZES файлов'
-  ClientHeight = 472
+  ClientHeight = 507
   ClientWidth = 392
   Position = poDesktopCenter
   LCLVersion = '2.2.4.0'
@@ -1411,6 +1411,16 @@ object Form1: TForm1
     Caption = 'Вытащить превьюшку из ZES файла'
     OnClick = Button_Save_PNG_from_ZESClick
     TabOrder = 5
+  end
+  object Label_link_home: TLabel
+    Left = 7
+    Height = 30
+    Top = 472
+    Width = 284
+    Caption = 'Новые версии программы можно скачать от сюда:'#13#10'https://github.com/Galavarez/Data_Frog_Y2_Hd_Plus'
+    ParentColor = False
+    ParentFont = False
+    OnClick = Label_link_homeClick
   end
   object OpenDialog_Path_PNG: TOpenDialog
     Filter = 'Превьюшка|*.png'

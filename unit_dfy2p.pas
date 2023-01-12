@@ -5,8 +5,7 @@ unit unit_dfy2p;
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls,
-  ShellAPI, Zipper;
+  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, ExtCtrls, Zipper, LCLIntf;
 
 type
 
@@ -25,6 +24,7 @@ type
     GroupBox2: TGroupBox;
     GroupBox3: TGroupBox;
     Image1: TImage;
+    Label_link_home: TLabel;
     OpenDialog_ZES: TOpenDialog;
     OpenDialog_Path_NES: TOpenDialog;
     OpenDialog_Path_PNG: TOpenDialog;
@@ -33,9 +33,8 @@ type
     procedure Button_Path_PNGClick(Sender: TObject);
     procedure Button_Save_PNG_from_ZESClick(Sender: TObject);
     procedure Button_Resset_AllClick(Sender: TObject);
+    procedure Label_link_homeClick(Sender: TObject);
   private
-    procedure Get_NAME;
-    procedure Get_PNG;
     procedure Get_ZIP_from_NES;
 
   public
@@ -44,15 +43,11 @@ type
 
 var
   Form1: TForm1;
-  // ZIP
-  PATH_ZIP_GLOBAL: String;
-  SIZE_ZIP_IN_HEX_GLOBAL: String;
-  // PNG
-  PATH_PNG_GLOBAL: String;
-  SIZE_PNG_IN_HEX_GLOBAL: String;
-  // Name
-  NAME_GAME : String;
-  LEANGTH_NAME_GAME: SizeInt;
+  // Потоки
+  MemoryStream_ZIP : TMemoryStream;
+  FileStream_PNG : TFileStream;
+  MemoryStream_HEADER: TMemoryStream;
+  FileStream_ZES : TFileStream;
 
 implementation
 
@@ -60,132 +55,132 @@ implementation
 
 { TForm1 }
 
+// Получаем ZIP из NES
 procedure TForm1.Get_ZIP_from_NES();
 var
-  ZIP: TZipper;
-  LANGTH_NAME_LOCAL: SizeInt;
-  NAME_NES_FOR_ZIP: String;
-  ZIP_FILE : File of Byte;
+  zip: TZipper;
+  name_nes, name_zip: String;
 begin
-     // Получаем имя без пути
-     NAME_NES_FOR_ZIP := ExtractFileName(Edit_Path_NES.Text);
-     // Получаем длину символов
-     LANGTH_NAME_LOCAL := Length(NAME_NES_FOR_ZIP);
-     // Удаляем расширение файла .nes
-     Delete(NAME_NES_FOR_ZIP, LANGTH_NAME_LOCAL - 3, 4);
-     // Вставляем расширение .zip
-     Insert('.zip', NAME_NES_FOR_ZIP, LANGTH_NAME_LOCAL);
-     // name_zip := StringReplace(name_zes, '.nes', '.zip', [rfReplaceAll, rfIgnoreCase]);
-     // Переменная для ZIP архива
-    ZIP := TZipper.Create;
+    // Получаем имя nes файла
+    name_nes := ExtractFileName(Edit_Path_NES.Text);
+    // Меняем расширение с nes на zip
+    name_zip := StringReplace(name_nes, '.nes', '.zip', [rfReplaceAll, rfIgnoreCase]);
+    // Создаем поток
+    MemoryStream_ZIP := TMemoryStream.Create;
+    // Создаем архив
+    zip := TZipper.Create;
     try
-      // Имя с расширением .zip
-      ZIP.FileName:= NAME_NES_FOR_ZIP;
+      // Имя архива
+      zip.FileName:= name_zip;
       // Добавляем NES в ZIP архив
-      ZIP.Entries.AddFileEntry(Edit_Path_NES.Text, ExtractFileName(Edit_Path_NES.Text));
+      zip.Entries.AddFileEntry(Edit_Path_NES.Text, ExtractFileName(Edit_Path_NES.Text));
+      // Сохраняем в поток
+      zip.SaveToStream(MemoryStream_ZIP);
       // Сохраняем ZIP архив
-      ZIP.ZipAllFiles;
+      //zip.ZipAllFiles;
     finally
       // Очищаем память
-      FreeAndNil(ZIP)
+      FreeAndNil(zip)
     end;
-    // Сохраняем путь к ZIP архиву
-    PATH_ZIP_GLOBAL := ExtractFilePath(paramstr(0) + NAME_NES_FOR_ZIP) + NAME_NES_FOR_ZIP;
-    // Открываем файл
-    AssignFile(ZIP_FILE, PATH_ZIP_GLOBAL);
-    // для чтения
-    Reset(ZIP_FILE);
-    // Получаем размер ZIP в HEX виде
-    SIZE_ZIP_IN_HEX_GLOBAL := IntToHex( FileSize(ZIP_FILE), 8);
-    // Закрываем файл
-    CloseFile(ZIP_FILE);
-end;
 
-procedure TForm1.Get_PNG();
-var
-  png : File of Byte;
-begin
-  PATH_PNG_GLOBAL := Edit_Path_PNG.Text;
-  AssignFile(png, Edit_Path_PNG.Text);
-  Reset(png);
-  SIZE_PNG_IN_HEX_GLOBAL := IntToHex(FileSize(png), 8);
-  CloseFile(png);
-end;
-
-procedure TForm1.Get_NAME();
-begin
-  NAME_GAME := ExtractFileName(Edit_Name_Game.Text);
-  LEANGTH_NAME_GAME := Length(NAME_GAME);
 end;
 
 procedure TForm1.Button_Build_ZESClick(Sender: TObject);
 var
-  head : Array[0..519] of Byte;
-  a, b: Integer;
-  HEADER : File of Byte;
-  command: String;
+  array_header : Array[0..519] of Byte;
+  i: Integer;
+  name_game : String;
+  length_name_game: SizeInt;
+  // Переменные для перевода из Integer в Hex
+  Int2Hex_size_png_int : Integer;
+  Int2Hex_size_png_hex : TByteArray absolute Int2Hex_size_png_int;
+  Int2Hex_size_zip_int : Integer;
+  Int2Hex_size_zip_hex : TByteArray absolute Int2Hex_size_zip_int;
 begin
-  // Получаем Name
-  Get_NAME;
+  // Получаем Имя игры
+  name_game := ExtractFileName(Edit_Name_Game.Text);
+  // Получаем количество знаков в имени
+  length_name_game := Length(name_game);
 
   // Создаем заголовок в 512 байт
-  for a:=0 to 511 do
+  // Если есть буквы то записываем их иначе записываем нули
+  for i := 0 to 511 do
   begin
-    if LEANGTH_NAME_GAME > a then
+    if length_name_game > i then
     begin
-         head[a] := Byte(NAME_GAME[a+1]);
+         array_header[i] := Byte(name_game[i + 1]);
     end
        else
     begin
-         head[a] := Byte($00);
+         array_header[i] := Byte($00);
     end;
   end;
 
-  // Получаем PNG
-  Get_PNG;
+  // Получаем PNG в потоке
+  FileStream_PNG := TFileStream.Create(Edit_Path_PNG.Text, fmOpenRead);
+
+  // Получаем размер png
+  Int2Hex_size_png_int := FileStream_PNG.Size;
 
   // Записываем размер PNG в HEADER
-  head[512] := StrToInt('$' + SIZE_PNG_IN_HEX_GLOBAL[7] + SIZE_PNG_IN_HEX_GLOBAL[8]);
-  head[513] := StrToInt('$' + SIZE_PNG_IN_HEX_GLOBAL[5] + SIZE_PNG_IN_HEX_GLOBAL[6]);
-  head[514] := StrToInt('$' + SIZE_PNG_IN_HEX_GLOBAL[3] + SIZE_PNG_IN_HEX_GLOBAL[4]);
-  head[515] := StrToInt('$' + SIZE_PNG_IN_HEX_GLOBAL[1] + SIZE_PNG_IN_HEX_GLOBAL[2]);
+  array_header[512] := Int2Hex_size_png_hex[0];
+  array_header[513] := Int2Hex_size_png_hex[1];
+  array_header[514] := Int2Hex_size_png_hex[2];
+  array_header[515] := Int2Hex_size_png_hex[3];
 
   // Получаем ZIP из NES
   Get_ZIP_from_NES;
 
+  // Получаем размер ZIP архива
+  Int2Hex_size_zip_int := MemoryStream_ZIP.Size;
+
   // Записываем размер ZIP в HEADER
-  head[516] := StrToInt('$' + SIZE_ZIP_IN_HEX_GLOBAL[7] + SIZE_ZIP_IN_HEX_GLOBAL[8]);
-  head[517] := StrToInt('$' + SIZE_ZIP_IN_HEX_GLOBAL[5] + SIZE_ZIP_IN_HEX_GLOBAL[6]);
-  head[518] := StrToInt('$' + SIZE_ZIP_IN_HEX_GLOBAL[3] + SIZE_ZIP_IN_HEX_GLOBAL[4]);
-  head[519] := StrToInt('$' + SIZE_ZIP_IN_HEX_GLOBAL[1] + SIZE_ZIP_IN_HEX_GLOBAL[2]);
+  array_header[516] := Int2Hex_size_zip_hex[0];
+  array_header[517] := Int2Hex_size_zip_hex[1];
+  array_header[518] := Int2Hex_size_zip_hex[2];
+  array_header[519] := Int2Hex_size_zip_hex[3];
 
-  // Создаем файл HEADER
-  AssignFile( HEADER, 'header') ;
-  Rewrite(HEADER);
-  for b:=0 to 519 do
-  begin
-       Write(HEADER, head[b]);
-  end;
-  CloseFile(HEADER);
+  // Копируем массив заголовка в поток
+  MemoryStream_HEADER := TMemoryStream.Create;
+  MemoryStream_HEADER.Write(array_header, 520);
 
-  // Создаем ZES
-  command := '/c copy /b "header" + "' + PATH_PNG_GLOBAL + '" + "' + PATH_ZIP_GLOBAL + '" "' + NAME_GAME + '.zes"';
-  ShellExecute( 0, PChar('open'), PChar('cmd'), PChar(command), nil, 0);
+  // Создаем файл ZES
+  FileStream_ZES := TFileStream.Create( name_game + '.zes', fmCreate);
+  // Копируем поток HEADER
+  MemoryStream_HEADER.Position := 0;
+  FileStream_ZES.CopyFrom(MemoryStream_HEADER, MemoryStream_HEADER.Size);
+  // Копируем поток PNG
+  FileStream_PNG.Position := 0;
+  FileStream_ZES.CopyFrom(FileStream_PNG, FileStream_PNG.Size);
+  // Копируем поток ZIP
+  MemoryStream_ZIP.Position := 0;
+  FileStream_ZES.CopyFrom(MemoryStream_ZIP, MemoryStream_ZIP.Size);
 
-  // Удаляем временные файлы
-  Sleep(2000);
-  DeleteFile('header');
-  DeleteFile(ExtractFileName(PATH_ZIP_GLOBAL));
+  // Чистим память
+  FileStream_ZES.Free;
+  MemoryStream_HEADER.Free;
+  FileStream_PNG.Free;
+  MemoryStream_ZIP.Free;
 
-  //
+  // Сообщение что все готово
   ShowMessage('ZES файл готов!');
 end;
 
 procedure TForm1.Button_Path_NESClick(Sender: TObject);
+var
+  name_dirty : String;
+  name_clear: String;
 begin
   if OpenDialog_Path_NES.Execute then
   begin
-       Edit_Path_NES.Text:= OpenDialog_Path_NES.FileName;
+    // Копируем путь выбранного файла
+    Edit_Path_NES.Text:= OpenDialog_Path_NES.FileName;
+    // Получаем имя файла
+    name_dirty := ExtractFileName(Edit_Path_NES.Text);
+    // Удаляем расширение nes
+    name_clear := StringReplace(name_dirty, '.nes', '', [rfReplaceAll, rfIgnoreCase]);
+    // Записываем имя в поле Edit_Name_Game
+    Edit_Name_Game.Text := name_clear;
   end;
 end;
 
@@ -197,40 +192,51 @@ begin
   end;
 end;
 
+// Вытаскиваем превьюшку
 procedure TForm1.Button_Save_PNG_from_ZESClick(Sender: TObject);
 var
   FS, FS2: TFileStream;
-  size_png : LongInt;
-  file_png : TByteArray;
+  buffer_size_png : LongInt;
+  buffer_file_png : TByteArray;
   path_zes, name_zes , name_png : String;
 begin
   if OpenDialog_ZES.Execute then
   begin
+    // Открываем zes файл
     path_zes := OpenDialog_ZES.FileName;
+    // Получаем имя
     name_zes := ExtractFileName(path_zes);
+    // Меняем расширение с zes на png
     name_png := StringReplace(name_zes, '.zes', '.png', [rfReplaceAll, rfIgnoreCase]);
 
-    // Получаю размер png
+    // Получам размер png
     FS := TFileStream.Create(path_zes, fmOpenRead);
     FS.Position:= 512;
-    FS.Read(size_png, 7);
-    // Получаю массив байтов png
+    FS.Read(buffer_size_png, 7);
+    // Получам массив байт png
     FS.Position:= 520;
-    FS.Read(file_png, size_png);
+    FS.Read(buffer_file_png, buffer_size_png);
     FS.Free;
-    // Сохраняю массив байтов png в файл
+    // Сохраняю массив байт png в файл
     FS2 := TFileStream.Create(name_png, fmCreate);
-    FS2.Write(file_png, size_png);
+    FS2.Write(buffer_file_png, buffer_size_png);
     FS2.Free;
-    ShowMessage('Превьюшка успешно добыта!');
+    ShowMessage('Превьюшка успешно получена!');
   end;
 end;
 
+// Обнуление всех полей
 procedure TForm1.Button_Resset_AllClick(Sender: TObject);
 begin
   Edit_Name_Game.Clear;
   Edit_Path_NES.Clear;
   Edit_Path_PNG.Clear;
+end;
+
+// Ссылка на сайт программы
+procedure TForm1.Label_link_homeClick(Sender: TObject);
+begin
+  OpenURL('https://github.com/Galavarez/Data_Frog_Y2_Hd_Plus');
 end;
 
 
