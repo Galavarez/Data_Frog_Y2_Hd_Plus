@@ -27,3 +27,10 @@ ZES файл это игра + превьюшка для игровой прис
 
 
 
+**Литература для понимания формата:**
+
+Структура PKZip файла <br>
+https://users.cs.jmu.edu/buchhofp/forensics/formats/pkzip.html
+
+Структура PNG файла <br>
+https://habr.com/ru/post/130472/
