@@ -34,3 +34,6 @@ https://users.cs.jmu.edu/buchhofp/forensics/formats/pkzip.html
 
 Структура PNG файла <br>
 https://habr.com/ru/post/130472/
+
+Форум где обсуждали структуру формата <br>
+https://4pda.to/forum/index.php?showtopic=978316
