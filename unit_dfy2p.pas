@@ -212,7 +212,7 @@ begin
     // Получам размер png
     FS := TFileStream.Create(path_zes, fmOpenRead);
     FS.Position:= 512;
-    FS.Read(buffer_size_png, 7);
+    FS.Read(buffer_size_png, 4);
     // Получам массив байт png
     FS.Position:= 520;
     FS.Read(buffer_file_png, buffer_size_png);
