@@ -39,4 +39,5 @@ https://habr.com/ru/post/130472/
 https://4pda.to/forum/index.php?showtopic=978316
 
 **Поддержка автора программы:**
+
 4817 7602 2657 8304 (СБЕР)
